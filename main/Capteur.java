@@ -20,6 +20,7 @@ public class Capteur implements Comparable<Capteur> {
         this.nom=nom;
         String separateur= ":";
         String des[] = description.split(separateur);
+        //TODO: possible corrupted message -> need to throw an exception.
         this.type=TypeFluide.valueOf(des[0]);
         this.batiment=des[1];
         this.etage= Integer.valueOf(des[2]);

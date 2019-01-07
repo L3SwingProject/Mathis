@@ -5,21 +5,19 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.util.NavigableMap;
-import java.util.NavigableSet;
-import java.util.TreeMap;
+import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
-import exceptions.BadFormatMessageException;
 import main.*;
 
 public class Serveur extends Thread {
     private static NavigableSet<Capteur> list;
     private static NavigableMap<String, Capteur> keyList = new TreeMap<>();
     private int badFormat = 0;
-    //TODO: database
     final static int port = 8952;
+    private static boolean isRunning = true;
+    private static List<Serveur> serveurs = new ArrayList<>();
     private Socket socket;
 
     /**
@@ -30,10 +28,10 @@ public class Serveur extends Thread {
         Serveur.list = list;
         try{
             ServerSocket socketServeur = new ServerSocket(port);
-            while(true){
+            while(isRunning){
                 Socket socketClient = socketServeur.accept();
-                Serveur s = new Serveur(socketClient);
-                s.start();
+                serveurs.add(new Serveur(socketClient));
+                serveurs.get(serveurs.size()-1).start();
             }
         }catch(IOException e){
             e.printStackTrace();
@@ -54,9 +52,9 @@ public class Serveur extends Thread {
             String message;
             BufferedReader in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
             badFormat = 0;
-            while (!socket.isClosed()) {
+            while (!socket.isClosed() && isRunning) {
                 message = in.readLine();
-                if (!message.isEmpty()) {
+                if (message != null) {
                     String[] infos = message.split(" ");
                     System.out.println(message);
                     switch (infos[0]) {
@@ -97,10 +95,20 @@ public class Serveur extends Thread {
                             if (badFormat == 3)
                                 socket.close();
                     }
+                }else{
+                    socket.close();
                 }
             }
+            socket.close();
         }catch(IOException e){
             e.printStackTrace();
+        }
+    }
+
+    public static void exit(){
+        isRunning = false;
+        for (Serveur serveur : serveurs){
+            serveur.interrupt();
         }
     }
 }

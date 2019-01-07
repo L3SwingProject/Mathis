@@ -3,6 +3,7 @@ package networking;
 import main.Capteur;
 
 import java.sql.*;
+import java.util.*;
 
 public class DatabaseManager {
     private static String databaseName = "jdbc:mysql://localhost:3306/capteurs_database";
@@ -19,7 +20,7 @@ public class DatabaseManager {
                 stmt.close();
             }
         }catch (SQLException ex){
-            DatabaseManager.treatException(ex);
+            treatException(ex);
         }
     }
 
@@ -29,13 +30,99 @@ public class DatabaseManager {
             Statement stmt = con.createStatement();
             try{
                 stmt.execute("INSERT INTO `Valeur` (`ValeurPrise`, `CapteurCorr`) VALUE ('"+valeur+"', '"+nomCapteur+"');");
-                stmt.execute("UPDATE `Capteur` SET `ValeurCapteur` = '"+valeur+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"'");
+                stmt.execute("UPDATE `Capteur` SET `ValeurCapteur` = '"+valeur+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"';");
             }finally{
                 stmt.close();
             }
         }catch(SQLException ex){
-            DatabaseManager.treatException(ex);
+            treatException(ex);
         }
+    }
+
+    public static NavigableSet<String> getNomsCapteurs(String type){
+        NavigableSet<String> ret = new TreeSet<>();
+        try{
+            Connection con = DriverManager.getConnection(databaseName, user, pass);
+            Statement stmt = con.createStatement();
+            try{
+                ResultSet rs = stmt.executeQuery("SELECT `NomCapteur` FROM `Capteur` WHERE `TypeCapteur` = '"+type+"';");
+
+                while (rs.next()){
+                    String currentNom = rs.getString("NomCapteur");
+                    ret.add(currentNom);
+                }
+            }finally{
+                stmt.close();
+            }
+        }catch(SQLException ex){
+            treatException(ex);
+        }
+        return ret;
+    }
+
+    public static NavigableMap<String, Float> getValeursCapteur(String nomCapteurs, String dateMin, String dateMax){
+        NavigableMap<String, Float> ret = new TreeMap<>();
+        try{
+            Connection con = DriverManager.getConnection(databaseName, user, pass);
+            Statement stmt = con.createStatement();
+            try{
+                String query = "SELECT `ValeurPrise`, `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+nomCapteurs+"';";
+                ResultSet rs = stmt.executeQuery(query);
+
+                while (rs.next()){
+                    Float currentValeur = rs.getFloat("ValeurPrise");
+                    String currentDate = getDate(rs.getString("DateValeur"));
+                    if (currentDate.compareTo(dateMin) >= 0 && currentDate.compareTo(dateMax) <= 0)
+                        ret.put(currentDate, currentValeur);
+                }
+            }finally {
+                stmt.close();
+            }
+        }catch(SQLException ex){
+            treatException(ex);
+        }
+        return ret;
+    }
+
+    /**
+     * @return - return the list of all the times recorded (without doubles)
+     */
+    public static List<String> getTimes(String type){
+        NavigableSet<String> temp = new TreeSet<>();
+        NavigableSet<String> typedCapteurs = getNomsCapteurs(type);
+        if (typedCapteurs.isEmpty())    return new ArrayList<>();
+        try{
+            Connection con = DriverManager.getConnection(databaseName, user, pass);
+            Statement stmt = con.createStatement();
+            try{
+                String query = "SELECT `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+typedCapteurs.first()+"'";
+                typedCapteurs.remove(typedCapteurs.first());
+                while (!typedCapteurs.isEmpty()){
+                    query += " || `CapteurCorr` = '"+typedCapteurs.first()+"'";
+                    typedCapteurs.remove(typedCapteurs.first());
+                }
+                query+=";";
+                ResultSet rs = stmt.executeQuery(query);
+                while (rs.next()){
+                    temp.add(getDate(rs.getString("DateValeur")));
+                }
+            }finally{
+                stmt.close();
+            }
+        }catch (SQLException ex){
+            treatException(ex);
+        }
+        return new ArrayList<>(temp);
+    }
+
+    private static String getDate(String date){
+        String[] datetime = date.split(" ");
+        String time = datetime[1];
+        int lastSec = Integer.valueOf(time.substring(7, 8));
+        if (lastSec > 5)   lastSec = 5;
+        else lastSec = 0;
+        String ret = time.substring(0, 7) + lastSec;
+        return ret;
     }
 
     private static String createQueryCapteur(Capteur capteur){
