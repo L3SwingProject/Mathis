@@ -80,8 +80,16 @@ public class Capteur implements Comparable<Capteur> {
         return nom.equals(capteur.nom);
     }
 
+    public String getEtageString() {
+        return batiment+":"+etage;
+    }
+
     @Override
-    public String toString() {
+    public String toString(){
+        return "Capteur " + nom;
+    }
+
+    public String toStringBis() {
         return "Capteur{" +
                 "nom='" + nom + '\'' +
                 ", batiment='" + batiment + '\'' +

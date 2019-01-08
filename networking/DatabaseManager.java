@@ -91,19 +91,16 @@ public class DatabaseManager {
     /**
      * @return - return the list of all the times recorded (without doubles)
      */
-    public static List<String> getTimes(String type){//TODO: changes type to String...capteurs and select only chosen capters' times.
+    public static List<String> getTimes(List<String> NomCapteurs){
         NavigableSet<String> temp = new TreeSet<>();
-        NavigableSet<String> typedCapteurs = getNomsCapteurs(type);
-        if (typedCapteurs.isEmpty())    return new ArrayList<>();
+        if (NomCapteurs.size() == 0)    return new ArrayList<>();
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                String query = "SELECT `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+typedCapteurs.first()+"'";
-                typedCapteurs.remove(typedCapteurs.first());
-                while (!typedCapteurs.isEmpty()){
-                    query += " || `CapteurCorr` = '"+typedCapteurs.first()+"'";
-                    typedCapteurs.remove(typedCapteurs.first());
+                String query = "SELECT `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+NomCapteurs.get(0)+"'";
+                for (int i = 1 ; i < NomCapteurs.size() ; i++){
+                    query += " || `CapteurCorr` = '"+NomCapteurs.get(i)+"'";
                 }
                 query+=";";
                 ResultSet rs = stmt.executeQuery(query);

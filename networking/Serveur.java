@@ -11,6 +11,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 import exceptions.BadFormatMessageException;
 import main.*;
+import modeles.ModeleArbre;
 
 public class Serveur extends Thread {
     private static NavigableSet<Capteur> list;
@@ -81,6 +82,7 @@ public class Serveur extends Thread {
                                 list.add(toAdd);
                                 keyList.put(infos[1], toAdd);
                                 DatabaseManager.addCapteur(toAdd);
+                                InterfaceSwing.setModeleArbre(new ModeleArbre(list));
                             }finally{
                                 lc.unlock(); //unlock mutex
                             }

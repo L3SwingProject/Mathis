@@ -1,5 +1,6 @@
 package main;
 
+import modeles.ModeleArbre;
 import networking.*;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
@@ -9,6 +10,12 @@ import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 
 import javax.swing.*;
+import javax.swing.event.TreeModelEvent;
+import javax.swing.event.TreeModelListener;
+import javax.swing.tree.DefaultTreeCellRenderer;
+import javax.swing.tree.TreeModel;
+import javax.swing.tree.TreePath;
+import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.*;
@@ -18,13 +25,25 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class InterfaceSwing extends Thread {
     private static NavigableSet<Capteur> list = new TreeSet<>();
+
     /* Composants graphiques */
+    private static JFrame fenetre = new JFrame();
+
     /* Partie tableau temps reel */
 
     /* Partie arbre gestion */
+    private static JSplitPane treePane;
+    private static JTree jModTree = new JTree(new ModeleArbre(list));
+    private static JPanel jPanelInfo = new JPanel();
+    private static JLabel jLNom = new JLabel();
+    private static JLabel jLLoc = new JLabel();
+    private static JLabel jLType = new JLabel();
+    private static JLabel jLSeuilMax = new JLabel();
+    private static JLabel jLSeuilMin = new JLabel();
+    private static JLabel jLEspace = new JLabel();
+    private static JLabel jLModif = new JLabel();
 
     /* Partie courbes */
-    private static JFrame frameCourbe = new JFrame(); //TODO : delete
     private static JSplitPane courbesGestionPanel;
     private static ChartPanel courbesPanel;
     private static JFreeChart courbes;
@@ -44,11 +63,34 @@ public class InterfaceSwing extends Thread {
      * @param args - none
      */
     public static void main(String[] args){
-        buildCourbesGestionPanel();
-        new Thread(() -> {
-            frameCourbe.setVisible(true);
-        }).start();
+        buildInterface();
+        new Thread(() -> fenetre.setVisible(true)).start();
         Serveur.listenSimul(list);
+    }
+
+    public static void setModeleArbre(ModeleArbre modele){
+        jModTree.setModel(modele);
+    }
+
+    private static void buildInterface(){
+        buildTreePanel();
+        //buildTablePanel();
+        buildCourbesGestionPanel();
+
+        fenetre.setLayout(new BorderLayout());
+        fenetre.add(treePane, BorderLayout.CENTER);
+        fenetre.add(courbesGestionPanel, BorderLayout.SOUTH);
+        fenetre.setSize(1000, 800);
+
+        fenetre.addWindowListener(
+                new WindowAdapter() {
+                    @Override
+                    public void windowClosing(WindowEvent e) {
+                        Serveur.exit();
+                        e.getWindow().dispose();
+                    }
+                }
+        );
     }
 
     private static void buildCourbesGestionPanel(){
@@ -62,14 +104,14 @@ public class InterfaceSwing extends Thread {
         courbesGestionPanel = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         courbesGestionPanel.setLeftComponent(gestion);
         courbesGestionPanel.setRightComponent(courbesPanel);
-        frameCourbe.add(courbesGestionPanel);   //TODO : delete
-        frameCourbe.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+        fenetre.add(courbesGestionPanel);   //TODO : delete
         courbesGestionPanel.setDividerSize(0);
 
         /* actions */
         typeCourbes.addActionListener( al -> initCapteurBoxContent(typeCourbes.getSelectedIndex() != 0) );
         capteursCourbe1.addActionListener(
                 al -> {
+                    if (capteursCourbe1.getItemCount() > 0) updateDates();
                     if (capteursCourbe1.getSelectedIndex() != 0 && capteursCourbe1.getItemCount() > 0){
                         capteursCourbe2.setEnabled(true);
                         submitCourbes.setEnabled(true);
@@ -81,21 +123,17 @@ public class InterfaceSwing extends Thread {
         );
         capteursCourbe2.addActionListener(
                 al -> {
-                    if (capteursCourbe2.getSelectedIndex() != 0){
+                    if (capteursCourbe2.getItemCount() > 0) updateDates();
+                    if (capteursCourbe2.getSelectedIndex() != 0 && capteursCourbe2.getItemCount() > 0){
                         capteursCourbe3.setEnabled(true);
                     }else{
                         capteursCourbe3.setEnabled(false);
                     }
                 }
         );
-        submitCourbes.addActionListener(
-                al -> {
-                    courbes = createChart(createCategoryDataset());
-                    courbesPanel = new ChartPanel(courbes);
-                    courbesGestionPanel.setRightComponent(courbesPanel);
-                }
-        );
-
+        capteursCourbe3.addActionListener(al -> {
+            if (capteursCourbe3.getItemCount() > 0) updateDates();
+        });
         dateDebutCourbes.addChangeListener(
                 al -> {
                     if (dateDebutCourbes.getValue().equals(dateFinCourbes.getValue())){
@@ -110,13 +148,11 @@ public class InterfaceSwing extends Thread {
                     }
                 }
         );
-        frameCourbe.addWindowListener(
-                new WindowAdapter() {
-                    @Override
-                    public void windowClosing(WindowEvent e) {
-                        Serveur.exit();
-                        e.getWindow().dispose();
-                    }
+        submitCourbes.addActionListener(
+                al -> {
+                    courbes = createChart(createCategoryDataset());
+                    courbesPanel = new ChartPanel(courbes);
+                    courbesGestionPanel.setRightComponent(courbesPanel);
                 }
         );
     }
@@ -219,6 +255,86 @@ public class InterfaceSwing extends Thread {
         layout.setVerticalGroup(vGroup);
     }
 
+    private static void buildTreePanel(){
+        //virer la root
+        //jModTree.setRootVisible(false);
+
+        //virer les icone
+        DefaultTreeCellRenderer iconeTree = new  DefaultTreeCellRenderer();
+        iconeTree.setClosedIcon(null);
+        iconeTree.setOpenIcon(null);
+        iconeTree.setLeafIcon(null);
+        jModTree.setCellRenderer(iconeTree);
+
+        //afficher info
+        GroupLayout layout = new GroupLayout(jPanelInfo);
+        jPanelInfo.setLayout(layout);
+        layout.setHorizontalGroup(
+                layout.createSequentialGroup()
+                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.CENTER)
+                                .addComponent(jLNom)
+                                .addComponent(jLLoc)
+                                .addComponent(jLType)
+                                .addComponent(jLSeuilMax)
+                                .addComponent(jLSeuilMin)
+                                .addComponent(jLEspace)
+                                .addComponent(jLModif)
+                        )
+        );
+        layout.setVerticalGroup(
+                layout.createSequentialGroup()
+                        .addComponent(jLNom)
+                        .addComponent(jLLoc)
+                        .addComponent(jLType)
+                        .addComponent(jLSeuilMax)
+                        .addComponent(jLSeuilMin)
+                        .addComponent(jLEspace)
+                        .addComponent(jLModif)
+        );
+
+        //info qd on clique
+        jModTree.addTreeSelectionListener(event -> {
+            Object noeud = jModTree.getLastSelectedPathComponent();
+            if( noeud != null && noeud.getClass().equals(Capteur.class)){
+                Capteur capActu = (Capteur) noeud;
+                jLNom.setText("Nom : " + capActu.getNom());
+                jLLoc.setText("Localisation : "+ capActu.getLocalisation());
+                jLType.setText("Type : "+ capActu.getType());
+                jLSeuilMax.setText("Seuil maximum: " + capActu.getSeuilMax());
+                jLSeuilMin.setText("Seuil minimum : "+ capActu.getSeuilMin());
+                jLEspace.setText(" ");
+                jLModif.setText("Modification des seuils :");
+            }
+        });
+
+        jModTree.getModel().addTreeModelListener(
+                new TreeModelListener() {
+                    @Override
+                    public void treeNodesChanged(TreeModelEvent e) {
+
+                    }
+
+                    @Override
+                    public void treeNodesInserted(TreeModelEvent e) {
+
+                    }
+
+                    @Override
+                    public void treeNodesRemoved(TreeModelEvent e) {
+
+                    }
+
+                    @Override
+                    public void treeStructureChanged(TreeModelEvent e) {
+                        System.out.println("YES");
+                    }
+                }
+        );
+
+        treePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(jModTree), jPanelInfo);
+        treePane.setDividerLocation(300);
+    }
+
     /**
      * Precondition : at least one captor chosen.
      */
@@ -242,6 +358,7 @@ public class InterfaceSwing extends Thread {
         }finally{
             l.unlock();
         }
+
         for (Map.Entry<String, Float> entry : valeursCapteur.entrySet()){
             String dateCapteurCourant = entry.getKey();
             dataset.addValue(entry.getValue(), nomCapteur, dateCapteurCourant);
@@ -280,17 +397,19 @@ public class InterfaceSwing extends Thread {
                 capteursCourbe3.addItem(capteur);
             }
             capteursCourbe1.setEnabled(true);
-            updateDates();
         }
     }
 
     private static void updateDates(){
-        //TODO: get only selected captor's times.
         List<String> times;
+        List<String> capteurs = new ArrayList<>();
+        if (!capteursCourbe1.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe1.getSelectedItem().toString());
+        if (!capteursCourbe2.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe2.getSelectedItem().toString());
+        if (!capteursCourbe3.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe3.getSelectedItem().toString());
         Lock l = new ReentrantLock();
         l.lock();
         try{
-            times = DatabaseManager.getTimes(typeCourbes.getSelectedItem().toString());
+            times = DatabaseManager.getTimes(capteurs);
         }finally{
             l.unlock();
         }
