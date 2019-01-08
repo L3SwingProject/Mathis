@@ -9,11 +9,12 @@ import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 
 import javax.swing.*;
-import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 
 public class InterfaceSwing extends Thread {
     private static NavigableSet<Capteur> list = new TreeSet<>();
@@ -233,7 +234,14 @@ public class InterfaceSwing extends Thread {
     }
 
     private static void updateDataset(String nomCapteur, DefaultCategoryDataset dataset){
-        NavigableMap<String, Float> valeursCapteur = DatabaseManager.getValeursCapteur(nomCapteur, dateDebutCourbes.getValue().toString(), dateFinCourbes.getValue().toString());
+        NavigableMap<String, Float> valeursCapteur;
+        Lock l = new ReentrantLock();
+        l.lock();
+        try{
+            valeursCapteur = DatabaseManager.getValeursCapteur(nomCapteur, dateDebutCourbes.getValue().toString(), dateFinCourbes.getValue().toString());
+        }finally{
+            l.unlock();
+        }
         for (Map.Entry<String, Float> entry : valeursCapteur.entrySet()){
             String dateCapteurCourant = entry.getKey();
             dataset.addValue(entry.getValue(), nomCapteur, dateCapteurCourant);
@@ -259,7 +267,13 @@ public class InterfaceSwing extends Thread {
         dateFinCourbes.setEnabled(false);
         submitCourbes.setEnabled(false);
         if (isTypeDefined){
-            capteursTyped = DatabaseManager.getNomsCapteurs(Objects.requireNonNull(typeCourbes.getSelectedItem()).toString());
+            Lock l = new ReentrantLock();
+            l.lock();
+            try{
+                capteursTyped = DatabaseManager.getNomsCapteurs(Objects.requireNonNull(typeCourbes.getSelectedItem()).toString());
+            }finally{
+                l.unlock();
+            }
             for (String capteur : capteursTyped){
                 capteursCourbe1.addItem(capteur);
                 capteursCourbe2.addItem(capteur);
@@ -271,10 +285,18 @@ public class InterfaceSwing extends Thread {
     }
 
     private static void updateDates(){
-        List<String> times = DatabaseManager.getTimes(typeCourbes.getSelectedItem().toString());
+        //TODO: get only selected captor's times.
+        List<String> times;
+        Lock l = new ReentrantLock();
+        l.lock();
+        try{
+            times = DatabaseManager.getTimes(typeCourbes.getSelectedItem().toString());
+        }finally{
+            l.unlock();
+        }
         if (!times.isEmpty()) {
-            dateDebutCourbes.setModel(new SpinnerListModel(DatabaseManager.getTimes(typeCourbes.getSelectedItem().toString())));
-            dateFinCourbes.setModel(new SpinnerListModel(DatabaseManager.getTimes(typeCourbes.getSelectedItem().toString())));
+            dateDebutCourbes.setModel(new SpinnerListModel(times));
+            dateFinCourbes.setModel(new SpinnerListModel(times));
             dateFinCourbes.setValue(dateFinCourbes.getNextValue());
             dateDebutCourbes.setEnabled(true);
             dateFinCourbes.setEnabled(true);

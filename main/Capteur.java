@@ -2,8 +2,6 @@ package main;
 
 import exceptions.BadFormatMessageException;
 
-import java.util.Objects;
-
 public class Capteur implements Comparable<Capteur> {
     private String nom;
     private String batiment;
@@ -16,16 +14,21 @@ public class Capteur implements Comparable<Capteur> {
     private boolean connecte = true;
     private String localisation;
 
-    public Capteur(String nom, String description) {
+    public Capteur(String nom, String description) throws BadFormatMessageException {
         this.nom=nom;
-        String separateur= ":";
-        String des[] = description.split(separateur);
-        //TODO: possible corrupted message -> need to throw an exception.
-        this.type=TypeFluide.valueOf(des[0]);
+        String des[] = description.split(":");
         this.batiment=des[1];
-        this.etage= Integer.valueOf(des[2]);
         this.lieu = des[3];
+        if (batiment.length() > 5)  throw new BadFormatMessageException("Batiment invalide");
         this.localisation=des[1]+"-"+des[2]+"-"+des[3];
+        try{
+            this.etage= Integer.valueOf(des[2]);
+            this.type = TypeFluide.valueOf(des[0]);
+        }catch(NumberFormatException e){
+            throw new BadFormatMessageException("Numero etage invalide");
+        }catch(IllegalArgumentException e){
+            throw new BadFormatMessageException("Type invalide");
+        }
         initSeuil();
     }
 
@@ -78,11 +81,6 @@ public class Capteur implements Comparable<Capteur> {
     }
 
     @Override
-    public int hashCode() {
-        return Objects.hash(nom);
-    }
-
-    @Override
     public String toString() {
         return "Capteur{" +
                 "nom='" + nom + '\'' +
@@ -131,5 +129,13 @@ public class Capteur implements Comparable<Capteur> {
 
     public String getLocalisation() {
         return localisation;
+    }
+
+    public void setSeuilMin(float seuilMin){
+        this.seuilMin = seuilMin;
+    }
+
+    public void setSeuilMax(float seuilMax){
+        this.seuilMax = seuilMax;
     }
 }

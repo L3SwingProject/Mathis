@@ -9,6 +9,7 @@ import java.util.*;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
 
+import exceptions.BadFormatMessageException;
 import main.*;
 
 public class Serveur extends Thread {
@@ -62,10 +63,18 @@ public class Serveur extends Thread {
                             socket.close();
                             Capteur toDel = keyList.get(infos[1]);
                             toDel.deconnexion();
-                            break;
+                            return;
                         case "Connexion":
                             badFormat = 0;
-                            Capteur toAdd = new Capteur(infos[1], infos[2]);
+                            Capteur toAdd;
+                            try{
+                                toAdd = new Capteur(infos[1], infos[2]);
+                            }catch(BadFormatMessageException e){
+                                e.printStackTrace();
+                                System.out.println("message invalide a la connexion, fermeture de la socket.");
+                                socket.close();
+                                return;
+                            }
                             Lock lc = new ReentrantLock();
                             lc.lock();       //lock mutex
                             try{

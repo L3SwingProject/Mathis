@@ -15,9 +15,10 @@ public class DatabaseManager {
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                stmt.execute(DatabaseManager.createQueryCapteur(capteur));
+                stmt.execute(createQueryCapteur(capteur));
             }finally{
                 stmt.close();
+                con.close();
             }
         }catch (SQLException ex){
             treatException(ex);
@@ -33,6 +34,7 @@ public class DatabaseManager {
                 stmt.execute("UPDATE `Capteur` SET `ValeurCapteur` = '"+valeur+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"';");
             }finally{
                 stmt.close();
+                con.close();
             }
         }catch(SQLException ex){
             treatException(ex);
@@ -53,6 +55,7 @@ public class DatabaseManager {
                 }
             }finally{
                 stmt.close();
+                con.close();
             }
         }catch(SQLException ex){
             treatException(ex);
@@ -77,6 +80,7 @@ public class DatabaseManager {
                 }
             }finally {
                 stmt.close();
+                con.close();
             }
         }catch(SQLException ex){
             treatException(ex);
@@ -87,7 +91,7 @@ public class DatabaseManager {
     /**
      * @return - return the list of all the times recorded (without doubles)
      */
-    public static List<String> getTimes(String type){
+    public static List<String> getTimes(String type){//TODO: changes type to String...capteurs and select only chosen capters' times.
         NavigableSet<String> temp = new TreeSet<>();
         NavigableSet<String> typedCapteurs = getNomsCapteurs(type);
         if (typedCapteurs.isEmpty())    return new ArrayList<>();
@@ -108,11 +112,27 @@ public class DatabaseManager {
                 }
             }finally{
                 stmt.close();
+                con.close();
             }
         }catch (SQLException ex){
             treatException(ex);
         }
         return new ArrayList<>(temp);
+    }
+
+    public static void setSeuils(String nomCapteur, float seuilMin, float seuilMax){
+        try{
+            Connection con = DriverManager.getConnection(databaseName, user, pass);
+            Statement stmt = con.createStatement();
+            try{
+                stmt.execute("UPDATE `Capteur` SET `SeuilMinCapteur` = '"+seuilMin+"', `SeuilMaxCapteur` = '"+seuilMax+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"'");
+            }finally{
+                stmt.close();
+                con.close();
+            }
+        }catch (SQLException ex){
+            treatException(ex);
+        }
     }
 
     private static String getDate(String date){
