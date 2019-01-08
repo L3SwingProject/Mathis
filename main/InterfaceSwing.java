@@ -76,6 +76,9 @@ public class InterfaceSwing extends Thread {
         buildTreePanel();
         //buildTablePanel();
         buildCourbesGestionPanel();
+        //TODO:: Switch strings to captors
+        //TODO:: Load list from database, so don't add them if they're already there.
+        //DatabaseManager.loadCapters(list);
 
         fenetre.setLayout(new BorderLayout());
         fenetre.add(treePane, BorderLayout.CENTER);

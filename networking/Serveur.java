@@ -28,6 +28,9 @@ public class Serveur extends Thread {
      */
     public static void listenSimul(NavigableSet<Capteur> list){
         Serveur.list = list;
+        for (Capteur capteur : Serveur.list){
+            keyList.put(capteur.getNom(), capteur);
+        }
         try{
             ServerSocket socketServeur = new ServerSocket(port);
             while(isRunning){
