@@ -12,7 +12,7 @@ import main.Capteur;
 
 
 public class ModeleArbre implements TreeModel {
-    public static NavigableSet<Capteur> liste;
+    private NavigableSet<Capteur> liste;
     private EventListenerList listeners = null;
 
     public ModeleArbre(NavigableSet<Capteur> list) {
@@ -175,5 +175,4 @@ public class ModeleArbre implements TreeModel {
             if (listeners == null)  return;
         listeners.remove(TreeModelListener.class, l);
     }
-
 }

@@ -10,11 +10,7 @@ import org.jfree.data.category.CategoryDataset;
 import org.jfree.data.category.DefaultCategoryDataset;
 
 import javax.swing.*;
-import javax.swing.event.TreeModelEvent;
-import javax.swing.event.TreeModelListener;
 import javax.swing.tree.DefaultTreeCellRenderer;
-import javax.swing.tree.TreeModel;
-import javax.swing.tree.TreePath;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -25,6 +21,7 @@ import java.util.concurrent.locks.ReentrantLock;
 
 public class InterfaceSwing extends Thread {
     private static NavigableSet<Capteur> list = new TreeSet<>();
+    private static NavigableMap<String, Capteur> keyList = new TreeMap<>();
 
     /* Composants graphiques */
     private static JFrame fenetre = new JFrame();
@@ -33,7 +30,7 @@ public class InterfaceSwing extends Thread {
 
     /* Partie arbre gestion */
     private static JSplitPane treePane;
-    private static JTree jModTree = new JTree(new ModeleArbre(list));
+    private static JTree jModTree;
     private static JPanel jPanelInfo = new JPanel();
     private static JLabel jLNom = new JLabel();
     private static JLabel jLLoc = new JLabel();
@@ -42,6 +39,14 @@ public class InterfaceSwing extends Thread {
     private static JLabel jLSeuilMin = new JLabel();
     private static JLabel jLEspace = new JLabel();
     private static JLabel jLModif = new JLabel();
+    private static JLabel labelMax = new JLabel("Seuil Max :", JLabel.LEFT);
+    private static JLabel labelMin = new JLabel("Seuil Min :", JLabel.LEFT);
+    private static JSpinner spinMax = new JSpinner();
+    private static JSpinner spinMin = new JSpinner();
+    private static JButton submitSeuils = new JButton("Modifier");
+    private static JButton resetSeuils = new JButton("Reinitialiser");
+    private static Capteur selected;
+    //TODO: update properly tree
 
     /* Partie courbes */
     private static JSplitPane courbesGestionPanel;
@@ -49,14 +54,14 @@ public class InterfaceSwing extends Thread {
     private static JFreeChart courbes;
     private static JPanel gestion = new JPanel();
     private static JComboBox<String> typeCourbes = new JComboBox<>();
-    private static JComboBox<String> capteursCourbe1 = new JComboBox<>();
-    private static JComboBox<String> capteursCourbe2 = new JComboBox<>();
-    private static JComboBox<String> capteursCourbe3 = new JComboBox<>();
+    private static JComboBox<Capteur> capteursCourbe1 = new JComboBox<>();
+    private static JComboBox<Capteur> capteursCourbe2 = new JComboBox<>();
+    private static JComboBox<Capteur> capteursCourbe3 = new JComboBox<>();
     private static JSpinner dateDebutCourbes;
     private static JSpinner dateFinCourbes;
     private static JLabel[] labels = new JLabel[6];
     private static JButton submitCourbes = new JButton("Afficher");
-    private static NavigableSet<String> capteursTyped;
+    private static NavigableSet<Capteur> capteursTyped;
 
     /**
      * main function : build, print graphic componant and animate them communicating with somulators/databse.
@@ -65,20 +70,26 @@ public class InterfaceSwing extends Thread {
     public static void main(String[] args){
         buildInterface();
         new Thread(() -> fenetre.setVisible(true)).start();
-        Serveur.listenSimul(list);
+        Serveur.listenSimul(list, keyList);
     }
 
-    public static void setModeleArbre(ModeleArbre modele){
-        jModTree.setModel(modele);
+    public static void setModeleArbre(){
+        jModTree.setModel(new ModeleArbre(list));
+        for (int i=0;i<jModTree.getRowCount();i++)
+            jModTree.expandRow(i);
     }
 
     private static void buildInterface(){
+        DatabaseManager.initList(keyList);
+        DatabaseManager.loadCapteurs(list);
+        for (Capteur capteur : list){
+            keyList.put(capteur.getNom(), capteur);
+        }
+        jModTree = new JTree(new ModeleArbre(list));
+
         buildTreePanel();
         //buildTablePanel();
         buildCourbesGestionPanel();
-        //TODO:: Switch strings to captors
-        //TODO:: Load list from database, so don't add them if they're already there.
-        //DatabaseManager.loadCapters(list);
 
         fenetre.setLayout(new BorderLayout());
         fenetre.add(treePane, BorderLayout.CENTER);
@@ -90,7 +101,6 @@ public class InterfaceSwing extends Thread {
                     @Override
                     public void windowClosing(WindowEvent e) {
                         Serveur.exit();
-                        e.getWindow().dispose();
                     }
                 }
         );
@@ -107,7 +117,7 @@ public class InterfaceSwing extends Thread {
         courbesGestionPanel = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
         courbesGestionPanel.setLeftComponent(gestion);
         courbesGestionPanel.setRightComponent(courbesPanel);
-        fenetre.add(courbesGestionPanel);   //TODO : delete
+        fenetre.add(courbesGestionPanel);
         courbesGestionPanel.setDividerSize(0);
 
         /* actions */
@@ -168,9 +178,9 @@ public class InterfaceSwing extends Thread {
 
         //init components
         //JComboBoxes
-        capteursCourbe1.addItem("Selectionner");
-        capteursCourbe2.addItem("Selectionner");
-        capteursCourbe3.addItem("Selectionner");
+        capteursCourbe1.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
+        capteursCourbe2.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
+        capteursCourbe3.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
 
 
         capteursCourbe1.setEnabled(false);
@@ -260,7 +270,11 @@ public class InterfaceSwing extends Thread {
 
     private static void buildTreePanel(){
         //virer la root
-        //jModTree.setRootVisible(false);
+        jModTree.setRootVisible(false);
+
+        // ouvrir les branches
+        for (int i=0;i<jModTree.getRowCount();i++)
+            jModTree.expandRow(i);
 
         //virer les icone
         DefaultTreeCellRenderer iconeTree = new  DefaultTreeCellRenderer();
@@ -269,73 +283,184 @@ public class InterfaceSwing extends Thread {
         iconeTree.setLeafIcon(null);
         jModTree.setCellRenderer(iconeTree);
 
-        //afficher info
+        //afficher infos + modification seuils
+        //initialisation
+        jLNom.setHorizontalAlignment(JLabel.LEFT);
+        jLLoc.setHorizontalAlignment(JLabel.LEFT);
+        jLModif.setHorizontalAlignment(JLabel.LEFT);
+        jLSeuilMin.setHorizontalAlignment(JLabel.LEFT);
+        jLSeuilMax.setHorizontalAlignment(JLabel.LEFT);
+        labelMax.setVisible(false);
+        labelMin.setVisible(false);
+        spinMin.setVisible(false);
+        spinMax.setVisible(false);
+        submitSeuils.setVisible(false);
+        resetSeuils.setVisible(false);
+
+        //ajouter au layout
         GroupLayout layout = new GroupLayout(jPanelInfo);
         jPanelInfo.setLayout(layout);
-        layout.setHorizontalGroup(
-                layout.createSequentialGroup()
-                        .addGroup(layout.createParallelGroup(GroupLayout.Alignment.CENTER)
-                                .addComponent(jLNom)
-                                .addComponent(jLLoc)
-                                .addComponent(jLType)
-                                .addComponent(jLSeuilMax)
-                                .addComponent(jLSeuilMin)
-                                .addComponent(jLEspace)
-                                .addComponent(jLModif)
-                        )
+        GroupLayout.SequentialGroup hGroup = layout.createSequentialGroup();
+
+        hGroup.addGroup(layout.createParallelGroup()
+                .addComponent(jLNom)
+                .addComponent(jLLoc)
+                .addComponent(jLType)
+                .addComponent(jLSeuilMax)
+                .addComponent(jLSeuilMin)
+                .addComponent(jLEspace)
+                .addComponent(jLModif)
+                .addComponent(labelMin)
+                .addComponent(labelMax)
+                .addComponent(submitSeuils)
+                .addComponent(resetSeuils)
         );
-        layout.setVerticalGroup(
-                layout.createSequentialGroup()
-                        .addComponent(jLNom)
-                        .addComponent(jLLoc)
-                        .addComponent(jLType)
-                        .addComponent(jLSeuilMax)
-                        .addComponent(jLSeuilMin)
-                        .addComponent(jLEspace)
-                        .addComponent(jLModif)
+
+        hGroup.addGroup(layout.createParallelGroup()
+                .addComponent(spinMin)
+                .addComponent(spinMax)
         );
+
+        layout.setHorizontalGroup(hGroup);
+
+        GroupLayout.SequentialGroup vGroup = layout.createSequentialGroup();
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLNom)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLLoc)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLType)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLSeuilMin)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLSeuilMax)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLEspace)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(jLModif)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(labelMin)
+                .addComponent(spinMin)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(labelMax)
+                .addComponent(spinMax)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(submitSeuils)
+        );
+
+        vGroup.addGroup(layout.createParallelGroup(GroupLayout.Alignment.BASELINE)
+                .addComponent(resetSeuils)
+        );
+
+        layout.setVerticalGroup(vGroup);
 
         //info qd on clique
         jModTree.addTreeSelectionListener(event -> {
             Object noeud = jModTree.getLastSelectedPathComponent();
             if( noeud != null && noeud.getClass().equals(Capteur.class)){
-                Capteur capActu = (Capteur) noeud;
-                jLNom.setText("Nom : " + capActu.getNom());
-                jLLoc.setText("Localisation : "+ capActu.getLocalisation());
-                jLType.setText("Type : "+ capActu.getType());
-                jLSeuilMax.setText("Seuil maximum: " + capActu.getSeuilMax());
-                jLSeuilMin.setText("Seuil minimum : "+ capActu.getSeuilMin());
+                Float mins = -10000f;
+                Float maxs = 10000f;
+                Float pas = 0.5f;
+                Capteur temp = (Capteur) noeud;
+                selected = keyList.get(temp.getNom());
+                jLNom.setText("Nom : " + selected.getNom());
+                jLLoc.setText("Localisation : "+ selected.getLieu());
+                jLType.setText("Type : "+ selected.getType());
+                jLSeuilMin.setText("Seuil minimum : "+ selected.getSeuilMin());
+                jLSeuilMax.setText("Seuil maximum : "+ selected.getSeuilMax());
                 jLEspace.setText(" ");
                 jLModif.setText("Modification des seuils :");
+                labelMin.setVisible(true);
+                labelMax.setVisible(true);
+                spinMin.setVisible(true);
+                spinMax.setVisible(true);
+                submitSeuils.setVisible(true);
+                resetSeuils.setVisible(true);
+                spinMin.setModel(new SpinnerNumberModel((Float)selected.getSeuilMin(), mins, maxs, pas));
+                spinMax.setModel(new SpinnerNumberModel((Float)selected.getSeuilMax(), mins, maxs, pas));
+            }else{
+                jLNom.setText("");
+                jLLoc.setText("");
+                jLType.setText("");
+                jLSeuilMin.setText("");
+                jLSeuilMax.setText("");
+                jLEspace.setText("");
+                jLModif.setText("");
+                labelMin.setVisible(false);
+                labelMax.setVisible(false);
+                spinMin.setVisible(false);
+                spinMax.setVisible(false);
+                submitSeuils.setVisible(false);
+                resetSeuils.setVisible(false);
             }
         });
 
-        jModTree.getModel().addTreeModelListener(
-                new TreeModelListener() {
-                    @Override
-                    public void treeNodesChanged(TreeModelEvent e) {
-
-                    }
-
-                    @Override
-                    public void treeNodesInserted(TreeModelEvent e) {
-
-                    }
-
-                    @Override
-                    public void treeNodesRemoved(TreeModelEvent e) {
-
-                    }
-
-                    @Override
-                    public void treeStructureChanged(TreeModelEvent e) {
-                        System.out.println("YES");
+        spinMin.addChangeListener(
+                al -> {
+                    Float valueMin = (Float)spinMin.getValue();
+                    Float valueMax = (Float)spinMax.getValue();
+                    if (valueMin.compareTo(valueMax) >= 0){
+                        spinMin.setValue(spinMin.getPreviousValue());
                     }
                 }
         );
 
+        spinMax.addChangeListener(
+                al -> {
+                    Float valueMin = (Float)spinMin.getValue();
+                    Float valueMax = (Float)spinMax.getValue();
+                    if (valueMax.compareTo(valueMin) <= 0){
+                        spinMax.setValue(spinMax.getNextValue());
+                    }
+                }
+        );
+
+        resetSeuils.addActionListener(
+                al -> {
+                    selected.initSeuil();
+                    DatabaseManager.setSeuils(selected, selected.getSeuilMin(), selected.getSeuilMax());
+                    jLSeuilMin.setText("Seuil minimum : "+ selected.getSeuilMin());
+                    jLSeuilMax.setText("Seuil maximum : "+ selected.getSeuilMax());
+                }
+        );
+
+        submitSeuils.addActionListener(
+                al -> {
+                    Float valueMin = (Float)spinMin.getValue();
+                    Float valueMax = (Float)spinMax.getValue();
+                    selected.setSeuilMin(valueMin);
+                    selected.setSeuilMax(valueMax);
+                    DatabaseManager.setSeuils(selected, valueMin, valueMax);
+                    jLSeuilMin.setText("Seuil minimum : "+ selected.getSeuilMin());
+                    jLSeuilMax.setText("Seuil maximum : "+ selected.getSeuilMax());
+                }
+        );
+
         treePane = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT, new JScrollPane(jModTree), jPanelInfo);
-        treePane.setDividerLocation(300);
+        treePane.setDividerLocation(200);
+        treePane.setDividerSize(0);
+        treePane.setMaximumSize(new Dimension(500,300));
+        treePane.setMinimumSize(new Dimension(500,300));
+
+        //ajout des listener sur les spinners/boutons
     }
 
     /**
@@ -343,28 +468,27 @@ public class InterfaceSwing extends Thread {
      */
     private static CategoryDataset createCategoryDataset(){
         DefaultCategoryDataset dataset = new DefaultCategoryDataset();
-        String nomCapteurChoisi1 = capteursCourbe1.getSelectedItem().toString();
-        String nomCapteurChoisi2 = capteursCourbe2.getSelectedItem().toString();
-        String nomCapteurChoisi3 = capteursCourbe3.getSelectedItem().toString();
-        updateDataset(nomCapteurChoisi1, dataset);
-        if (!nomCapteurChoisi2.equals("Selectionner"))   updateDataset(nomCapteurChoisi2, dataset);
-        if (!nomCapteurChoisi3.equals("Selectionner"))   updateDataset(nomCapteurChoisi3, dataset);
+        Capteur capteurChoisi2 = (Capteur)capteursCourbe2.getSelectedItem();
+        Capteur capteurChoisi3 = (Capteur)capteursCourbe3.getSelectedItem();
+        updateDataset((Capteur)capteursCourbe1.getSelectedItem(), dataset);
+        if (!capteurChoisi2.toString().equals("Selectionner"))   updateDataset(capteurChoisi2, dataset);
+        if (!capteurChoisi3.toString().equals("Selectionner"))   updateDataset(capteurChoisi3, dataset);
         return dataset;
     }
 
-    private static void updateDataset(String nomCapteur, DefaultCategoryDataset dataset){
+    private static void updateDataset(Capteur capteur, DefaultCategoryDataset dataset){
         NavigableMap<String, Float> valeursCapteur;
         Lock l = new ReentrantLock();
         l.lock();
         try{
-            valeursCapteur = DatabaseManager.getValeursCapteur(nomCapteur, dateDebutCourbes.getValue().toString(), dateFinCourbes.getValue().toString());
+            valeursCapteur = DatabaseManager.getValeursCapteur(capteur, dateDebutCourbes.getValue().toString(), dateFinCourbes.getValue().toString());
         }finally{
             l.unlock();
         }
 
         for (Map.Entry<String, Float> entry : valeursCapteur.entrySet()){
             String dateCapteurCourant = entry.getKey();
-            dataset.addValue(entry.getValue(), nomCapteur, dateCapteurCourant);
+            dataset.addValue(entry.getValue(), capteur, dateCapteurCourant);
         }
     }
 
@@ -375,11 +499,11 @@ public class InterfaceSwing extends Thread {
 
     private static void initCapteurBoxContent(boolean isTypeDefined){
         capteursCourbe1.removeAllItems();
-        capteursCourbe1.addItem("Selectionner");
+        capteursCourbe1.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
         capteursCourbe2.removeAllItems();
-        capteursCourbe2.addItem("Selectionner");
+        capteursCourbe2.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
         capteursCourbe3.removeAllItems();
-        capteursCourbe3.addItem("Selectionner");
+        capteursCourbe3.addItem(new Capteur("Selectionner", null, 0, null, null, 0, 0, 0, false));
         capteursCourbe1.setEnabled(false);
         capteursCourbe2.setEnabled(false);
         capteursCourbe3.setEnabled(false);
@@ -390,11 +514,11 @@ public class InterfaceSwing extends Thread {
             Lock l = new ReentrantLock();
             l.lock();
             try{
-                capteursTyped = DatabaseManager.getNomsCapteurs(Objects.requireNonNull(typeCourbes.getSelectedItem()).toString());
+                capteursTyped = DatabaseManager.getCapteurs(Objects.requireNonNull(typeCourbes.getSelectedItem().toString()));
             }finally{
                 l.unlock();
             }
-            for (String capteur : capteursTyped){
+            for (Capteur capteur : capteursTyped){
                 capteursCourbe1.addItem(capteur);
                 capteursCourbe2.addItem(capteur);
                 capteursCourbe3.addItem(capteur);
@@ -405,10 +529,10 @@ public class InterfaceSwing extends Thread {
 
     private static void updateDates(){
         List<String> times;
-        List<String> capteurs = new ArrayList<>();
-        if (!capteursCourbe1.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe1.getSelectedItem().toString());
-        if (!capteursCourbe2.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe2.getSelectedItem().toString());
-        if (!capteursCourbe3.getSelectedItem().equals("Selectionner"))  capteurs.add(capteursCourbe3.getSelectedItem().toString());
+        List<Capteur> capteurs = new ArrayList<>();
+        if (!capteursCourbe1.getSelectedItem().equals("Selectionner"))  capteurs.add((Capteur)capteursCourbe1.getSelectedItem());
+        if (!capteursCourbe2.getSelectedItem().equals("Selectionner"))  capteurs.add((Capteur)capteursCourbe2.getSelectedItem());
+        if (!capteursCourbe3.getSelectedItem().equals("Selectionner"))  capteurs.add((Capteur)capteursCourbe3.getSelectedItem());
         Lock l = new ReentrantLock();
         l.lock();
         try{

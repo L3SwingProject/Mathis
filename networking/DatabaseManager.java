@@ -1,21 +1,41 @@
 package networking;
 
 import main.Capteur;
+import main.TypeFluide;
 
 import java.sql.*;
 import java.util.*;
 
 public class DatabaseManager {
+    private static NavigableMap<String, Capteur> list;
     private static String databaseName = "jdbc:mysql://localhost:3306/capteurs_database";
     private static String user = "root";
     private static String pass = "";
 
-    public static void addCapteur(Capteur capteur){
+    public static void initList(NavigableMap<String, Capteur> list){
+        DatabaseManager.list = list;
+    }
+
+    public static void loadCapteurs(NavigableSet<Capteur> list){
         try {
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                stmt.execute(createQueryCapteur(capteur));
+                ResultSet rs = stmt.executeQuery("SELECT * FROM `Capteur`");
+
+                while(rs.next()){
+                    list.add(new Capteur(
+                            rs.getString("NomCapteur"),
+                            rs.getString("BatimentCapteur"),
+                            rs.getInt("EtageCapteur"),
+                            rs.getString("LocalisationCapteur"),
+                            TypeFluide.valueOf(rs.getString("TypeCapteur")),
+                            rs.getFloat("ValeurCapteur"),
+                            rs.getFloat("SeuilMinCapteur"),
+                            rs.getFloat("SeuilMaxCapteur"),
+                            false
+                    ));
+                }
             }finally{
                 stmt.close();
                 con.close();
@@ -25,13 +45,28 @@ public class DatabaseManager {
         }
     }
 
-    public static void addValeur(float valeur, String nomCapteur){
+    public static void addCapteur(Capteur capteur){
+        try {
+            Connection con = DriverManager.getConnection(databaseName, user, pass);
+            Statement stmt = con.createStatement();
+            try{
+                stmt.execute(createQueryAddCapteur(capteur));
+            }finally{
+                stmt.close();
+                con.close();
+            }
+        }catch (SQLException ex){
+            treatException(ex);
+        }
+    }
+
+    public static void addValeur(float valeur, Capteur capteur){
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                stmt.execute("INSERT INTO `Valeur` (`ValeurPrise`, `CapteurCorr`) VALUE ('"+valeur+"', '"+nomCapteur+"');");
-                stmt.execute("UPDATE `Capteur` SET `ValeurCapteur` = '"+valeur+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"';");
+                stmt.execute("INSERT INTO `Valeur` (`ValeurPrise`, `CapteurCorr`) VALUE ('"+valeur+"', '"+capteur.getNom()+"');");
+                stmt.execute("UPDATE `Capteur` SET `ValeurCapteur` = '"+valeur+"' WHERE `Capteur`.`NomCapteur` = '"+capteur.getNom()+"';");
             }finally{
                 stmt.close();
                 con.close();
@@ -41,8 +76,8 @@ public class DatabaseManager {
         }
     }
 
-    public static NavigableSet<String> getNomsCapteurs(String type){
-        NavigableSet<String> ret = new TreeSet<>();
+    public static NavigableSet<Capteur> getCapteurs(String type){
+        NavigableSet<Capteur> ret = new TreeSet<>();
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
@@ -51,7 +86,8 @@ public class DatabaseManager {
 
                 while (rs.next()){
                     String currentNom = rs.getString("NomCapteur");
-                    ret.add(currentNom);
+                    Capteur currentCapteur = list.get(currentNom);
+                    ret.add(currentCapteur);
                 }
             }finally{
                 stmt.close();
@@ -63,13 +99,13 @@ public class DatabaseManager {
         return ret;
     }
 
-    public static NavigableMap<String, Float> getValeursCapteur(String nomCapteurs, String dateMin, String dateMax){
+    public static NavigableMap<String, Float> getValeursCapteur(Capteur capteur, String dateMin, String dateMax){
         NavigableMap<String, Float> ret = new TreeMap<>();
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                String query = "SELECT `ValeurPrise`, `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+nomCapteurs+"';";
+                String query = "SELECT `ValeurPrise`, `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+capteur.getNom()+"';";
                 ResultSet rs = stmt.executeQuery(query);
 
                 while (rs.next()){
@@ -91,16 +127,16 @@ public class DatabaseManager {
     /**
      * @return - return the list of all the times recorded (without doubles)
      */
-    public static List<String> getTimes(List<String> NomCapteurs){
+    public static List<String> getTimes(List<Capteur> capteurs){
         NavigableSet<String> temp = new TreeSet<>();
-        if (NomCapteurs.size() == 0)    return new ArrayList<>();
+        if (capteurs.size() == 0)    return new ArrayList<>();
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                String query = "SELECT `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+NomCapteurs.get(0)+"'";
-                for (int i = 1 ; i < NomCapteurs.size() ; i++){
-                    query += " || `CapteurCorr` = '"+NomCapteurs.get(i)+"'";
+                String query = "SELECT `DateValeur` FROM `Valeur` WHERE `CapteurCorr` = '"+capteurs.get(0).getNom()+"'";
+                for (int i = 1 ; i < capteurs.size() ; i++){
+                    query += " || `CapteurCorr` = '"+capteurs.get(i).getNom()+"'";
                 }
                 query+=";";
                 ResultSet rs = stmt.executeQuery(query);
@@ -117,12 +153,12 @@ public class DatabaseManager {
         return new ArrayList<>(temp);
     }
 
-    public static void setSeuils(String nomCapteur, float seuilMin, float seuilMax){
+    public static void setSeuils(Capteur capteur, float seuilMin, float seuilMax){
         try{
             Connection con = DriverManager.getConnection(databaseName, user, pass);
             Statement stmt = con.createStatement();
             try{
-                stmt.execute("UPDATE `Capteur` SET `SeuilMinCapteur` = '"+seuilMin+"', `SeuilMaxCapteur` = '"+seuilMax+"' WHERE `Capteur`.`NomCapteur` = '"+nomCapteur+"'");
+                stmt.execute("UPDATE `Capteur` SET `SeuilMinCapteur` = '"+seuilMin+"', `SeuilMaxCapteur` = '"+seuilMax+"' WHERE `Capteur`.`NomCapteur` = '"+capteur.getNom()+"'");
             }finally{
                 stmt.close();
                 con.close();
@@ -142,7 +178,7 @@ public class DatabaseManager {
         return ret;
     }
 
-    private static String createQueryCapteur(Capteur capteur){
+    private static String createQueryAddCapteur(Capteur capteur){
         String ret = "INSERT INTO `Capteur` (`NomCapteur`, `BatimentCapteur`, `EtageCapteur`, `LocalisationCapteur`, `SeuilMinCapteur`, `SeuilMaxCapteur`, `ValeurCapteur`, `TypeCapteur`) VALUES (";
         ret += "'"+capteur.getNom()+"', ";
         ret += "'"+capteur.getBatiment()+"', ";

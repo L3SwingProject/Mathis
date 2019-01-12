@@ -14,6 +14,18 @@ public class Capteur implements Comparable<Capteur> {
     private boolean connecte = true;
     private String localisation;
 
+    public Capteur(String nom, String batiment, int etage, String lieu, TypeFluide type, float valeurCourante, float seuilMin, float seuilMax, boolean connecte){
+        this.nom = nom;
+        this.batiment = batiment;
+        this.etage = etage;
+        this.lieu = lieu;
+        this.type = type;
+        this.valeurCourante = valeurCourante;
+        this.seuilMin = seuilMin;
+        this.seuilMax = seuilMax;
+        this.connecte = connecte;
+    }
+
     public Capteur(String nom, String description) throws BadFormatMessageException {
         this.nom=nom;
         String des[] = description.split(":");
@@ -61,15 +73,7 @@ public class Capteur implements Comparable<Capteur> {
 
     @Override
     public int compareTo(Capteur arg){
-        if (this.connecte == arg.connecte){
-            return nom.compareTo(arg.nom);
-        }else{
-            if (this.connecte){
-                return 10;
-            }else{
-                return -10;
-            }
-        }
+        return nom.compareTo(arg.nom);
     }
 
     @Override
@@ -86,7 +90,7 @@ public class Capteur implements Comparable<Capteur> {
 
     @Override
     public String toString(){
-        return "Capteur " + nom;
+        return nom;
     }
 
     public String toStringBis() {
@@ -139,11 +143,17 @@ public class Capteur implements Comparable<Capteur> {
         return localisation;
     }
 
+    public boolean estConnect(){  return connecte;  }
+
     public void setSeuilMin(float seuilMin){
         this.seuilMin = seuilMin;
     }
 
     public void setSeuilMax(float seuilMax){
         this.seuilMax = seuilMax;
+    }
+
+    public boolean valeurExtSeuil() {
+        return (valeurCourante<seuilMin || valeurCourante>seuilMax);
     }
 }

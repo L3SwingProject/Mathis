@@ -1,10 +1,10 @@
 package modeles;
 
+import main.Capteur;
+
 import java.util.List;
 
 import javax.swing.table.AbstractTableModel;
-
-import main.Capteur;
 
 public class ModeleTableau extends AbstractTableModel {
 
@@ -57,12 +57,8 @@ public class ModeleTableau extends AbstractTableModel {
         return false;
     }
 
-	/*public void setValueAt(Object newVal, int rowIndex, int columnIndex) {
-		Capteur capteur = capteurs.get(rowIndex);
-		if(isCellEditable(rowIndex, columnIndex)) {
-
-		}
-		fireTableDataChanged();
-	}*/
+    public Capteur getCapteur(int rowIndex) {
+        return capteurs.get(rowIndex);
+    }
 
 }

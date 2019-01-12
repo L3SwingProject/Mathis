@@ -26,11 +26,9 @@ public class Serveur extends Thread {
      * Fonction main du thread qui lance le serveur.
      * @param list - list of captors
      */
-    public static void listenSimul(NavigableSet<Capteur> list){
+    public static void listenSimul(NavigableSet<Capteur> list, NavigableMap<String, Capteur> keyList){
         Serveur.list = list;
-        for (Capteur capteur : Serveur.list){
-            keyList.put(capteur.getNom(), capteur);
-        }
+        Serveur.keyList = keyList;
         try{
             ServerSocket socketServeur = new ServerSocket(port);
             while(isRunning){
@@ -85,7 +83,8 @@ public class Serveur extends Thread {
                                 list.add(toAdd);
                                 keyList.put(infos[1], toAdd);
                                 DatabaseManager.addCapteur(toAdd);
-                                InterfaceSwing.setModeleArbre(new ModeleArbre(list));
+                                InterfaceSwing.setModeleArbre();
+                                System.out.println(list);
                             }finally{
                                 lc.unlock(); //unlock mutex
                             }
@@ -99,7 +98,7 @@ public class Serveur extends Thread {
                             Lock ld = new ReentrantLock();
                             ld.lock();       //lock mutex
                             try{
-                                DatabaseManager.addValeur(newValue, infos[1]);
+                                DatabaseManager.addValeur(newValue, keyList.get(infos[1]));
                             }finally{
                                 ld.unlock(); //unlock mutex
                             }
